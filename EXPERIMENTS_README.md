@@ -15,10 +15,10 @@ The best checkpoint-based result obtained in this study is:
 
 | Metric | Accuracy |
 |---|---:|
-| Validation accuracy | **23.33%** |
-| Held-out test accuracy | **24.36%** |
+| Multi-architecture OOF accuracy | **17.88%** |
+| Held-out test accuracy | **27.18%** |
 
-The final prediction is produced by a five-model logit ensemble containing three EEGNet variants, a time-window DeepConvNet, and a graph-based EEG model.
+The strongest prediction is produced by five chronological DeepConvNet folds and five chronological EEGNet folds. Their fusion weight is selected exclusively from out-of-fold predictions.
 
 ---
 
@@ -226,6 +226,70 @@ Calibration changed confidence but did not improve top-1 accuracy.
 
 The 28 ms EEGNet achieved 16.28% best-checkpoint validation accuracy. Adding it produced 22.95% ensemble validation but only 23.21% test accuracy, so it was excluded.
 
+### ERP prototype correlation
+
+Class-average ERP templates were constructed from training trials after 4-sample temporal averaging. Raw cosine similarity, baseline-corrected similarity, diagonal-distance scoring, and per-trial/per-channel standardized cosine similarity were compared.
+
+| Prototype method | Validation accuracy |
+|---|---:|
+| Raw cosine | 5.38% |
+| Raw diagonal distance | 5.77% |
+| Baseline-corrected cosine | 6.92% |
+| Baseline-corrected diagonal distance | 7.18% |
+| Trial/channel-standardized cosine | **10.13%** |
+
+The selected prototype classifier reached 11.28% test accuracy. Fusion with the neural ensemble selected zero prototype weight on validation, so the ensemble remained 24.36%. Averaging reveals class ERP structure, but most useful template information was already represented by the CNNs.
+
+### Euclidean covariance alignment
+
+Training, validation, and test domains were independently whitened using unlabeled average channel covariance before training a 0--2,000 ms DeepConvNet.
+
+| Metric | Accuracy |
+|---|---:|
+| Best-loss validation checkpoint | 17.05% |
+| Highest validation epoch | 19.62% |
+| Test accuracy | **20.51%** |
+
+Alignment substantially improved standalone test performance but received zero weight when fused with the fixed ensemble. It corrected domain scale but did not add complementary decisions.
+
+### Multi-window parallel EEGNet
+
+Three branches modeled 0--300, 300--1,000, and 1,000--2,000 ms separately.
+
+| Metric | Accuracy |
+|---|---:|
+| Validation | 16.15% |
+| Test | 18.85% |
+
+The model received zero validation-selected ensemble weight. Explicit cognitive-stage separation was useful but weaker than the single 0--2,000 ms window model.
+
+### Dynamic GraphEEGNet
+
+A trial-specific attention graph was blended with the fixed physical electrode graph.
+
+| Metric | Accuracy |
+|---|---:|
+| Validation | 15.51% |
+| Test | 17.18% |
+
+The dynamic graph was weaker than the fixed graph and received zero ensemble weight. Functional connectivity estimated from one noisy trial was too unstable; the anatomical graph was a stronger regularizer.
+
+### EEG-specific augmentation
+
+The windowed DeepConvNet was retrained with 8% channel dropout, 60 ms temporal masking, 10% channel-wise amplitude jitter, and small Gaussian noise.
+
+| Metric | Accuracy |
+|---|---:|
+| Highest validation epoch | 18.59% |
+| Best-loss checkpoint validation | 16.67% |
+| Test | 19.10% |
+
+Augmentation delayed overfitting but weakened the final validation-loss checkpoint and added no ensemble gain.
+
+### Confusion-pair second stage
+
+Half of the validation split identified recurrent top-2 pairs: B--Q, A--S, B--G, B--R, and D--M. Pair-specific linear classifiers were trained from coarse 80 ms ERP-bin features. On the other half of validation, every nonzero correction set was no better than the unmodified ensemble, so zero pairs were selected and test accuracy stayed 24.36%.
+
 ---
 
 ## 8. Five-Fold Out-of-Fold Experiment
@@ -253,6 +317,31 @@ Reload the folds with:
 python src/train_oof_dcn.py --folds 5 --epochs 100 --seed 42 --reuse
 ```
 
+### Multi-architecture OOF extension
+
+The same five chronological folds were used to train EEGNet k=25 models. No sample was scored by the corresponding fold model during its own training.
+
+| OOF system | OOF accuracy | Test accuracy |
+|---|---:|---:|
+| Five windowed DeepConvNet folds | 15.58% | 20.90% |
+| Five EEGNet k=25 folds | 13.35% | 21.41% |
+| OOF-selected DCN + EEGNet fusion | **17.88%** | **27.18%** |
+
+The fusion uses 56% DeepConvNet logits and 44% scale-normalized EEGNet logits. The 44% value was selected on the concatenated OOF predictions, not on test labels. Although EEGNet had lower standalone OOF accuracy, it supplied highly complementary errors. Averaging five independently trained folds reduced variance, while cross-architecture fusion combined hierarchical ERP and depthwise temporal-spatial features.
+
+Train or reload the EEGNet folds:
+
+```bash
+python src/train_oof_eegnet.py --epochs 80 --folds 5 --seed 142
+python src/train_oof_eegnet.py --epochs 80 --folds 5 --seed 142 --reuse
+```
+
+Evaluate the fixed leakage-free fusion:
+
+```bash
+python src/evaluate_oof_multiarch_ensemble.py
+```
+
 ---
 
 ## 9. Ensemble Development
@@ -263,6 +352,7 @@ python src/train_oof_dcn.py --folds 5 --epochs 100 --seed 42 --reuse
 | Multi-seed five-model ensemble | 22.44% | 24.10% |
 | Ensemble with 0--2,000 ms DCN | 22.82% | 24.23% |
 | Ensemble with GraphEEGNet | **23.33%** | **24.36%** |
+| Multi-architecture OOF ensemble | **17.88% OOF** | **27.18%** |
 
 ### Final model weights
 
@@ -291,6 +381,23 @@ The gain comes from error decorrelation across temporal scales, seeds, input win
 
 ## 10. Final Reproduction
 
+### Best multi-architecture OOF result
+
+```bash
+python src/train_oof_dcn.py --folds 5 --epochs 100 --seed 42
+python src/train_oof_eegnet.py --folds 5 --epochs 80 --seed 142
+python src/evaluate_oof_multiarch_ensemble.py
+```
+
+Expected final output:
+
+```text
+DCN weight: 0.56
+EEGNet weight: 0.44
+OOF accuracy: 17.88%
+Held-out test accuracy: 27.18%
+```
+
 ### Train all final models from scratch
 
 After preparing `data/processed/eeg_dataset.npz`, the complete five-model workflow can be run with one command:
@@ -314,7 +421,7 @@ To keep and reuse checkpoints that already exist:
 python src/train_final_ensemble.py --reuse
 ```
 
-Complete retraining reproduces the method rather than guaranteeing bit-identical weights. Stochastic optimization, CUDA kernels, and early-stopping trajectories can change the final accuracy. The fixed saved checkpoints are required for exact reproduction of the reported 24.36% result.
+Complete retraining reproduces the method rather than guaranteeing bit-identical weights. Stochastic optimization, CUDA kernels, and early-stopping trajectories can change the final accuracy. The fixed five-model checkpoints are required for exact reproduction of the 24.36% non-OOF result; the ten fold checkpoints are required for exact reproduction of the 27.18% OOF result.
 
 ### Evaluate existing final checkpoints
 
@@ -365,14 +472,14 @@ The command was executed three consecutive times with identical output. Checkpoi
 3. Validation and test contain only 780 trials each; one trial changes accuracy by about 0.128 percentage points.
 4. Repeated studies on one split create indirect test-set familiarity.
 5. Graph coordinates are approximate rather than participant-specific digitized positions.
-6. The 24.36% result is checkpoint-reproducible, but a full multi-run retraining distribution has not yet been measured.
+6. The 27.18% result is checkpoint-reproducible, but a full multi-run retraining distribution has not yet been measured.
 
 ---
 
 ## 13. Recommended Future Work
 
-1. Train GraphEEGNet and EEGNet under the same OOF protocol.
-2. Generate OOF logits for every architecture and fit a leakage-free low-dimensional stacker.
+1. Train GraphEEGNet under the same OOF protocol and test whether topology adds a third complementary architecture.
+2. Generate OOF logits for additional successful architectures and fit a leakage-free low-dimensional stacker.
 3. Use digitized participant-specific electrode coordinates.
 4. Add session/domain-adversarial objectives to reduce chronological drift.
 5. Evaluate on additional participants.

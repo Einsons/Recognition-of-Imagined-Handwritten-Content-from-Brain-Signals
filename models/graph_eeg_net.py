@@ -75,3 +75,37 @@ class GraphEEGNet(nn.Module):
         x = self.graph1(x, self.adjacency)
         x = self.graph2(x, self.adjacency)
         return self.head(self.spatial(x))
+
+
+class DynamicGraphTemporalBlock(nn.Module):
+    def __init__(self, features, kernel, dropout, graph_dim=16):
+        super().__init__()
+        self.query = nn.Linear(features, graph_dim, bias=False)
+        self.key = nn.Linear(features, graph_dim, bias=False)
+        self.mix = nn.Parameter(torch.tensor(0.0))
+        self.gate = nn.Parameter(torch.zeros(1, features, 1, 1))
+        self.scale = graph_dim ** -0.5
+        self.temporal = nn.Sequential(
+            nn.Conv2d(features, features, (1, kernel), padding=(0, kernel // 2),
+                      groups=features, bias=False),
+            nn.Conv2d(features, features, 1, bias=False),
+            nn.BatchNorm2d(features), nn.ELU(), nn.Dropout(dropout),
+        )
+
+    def forward(self, x, physical):
+        nodes = x.mean(dim=-1).transpose(1, 2)  # B, electrodes, features
+        scores = torch.matmul(self.query(nodes), self.key(nodes).transpose(1, 2)) * self.scale
+        dynamic = scores.softmax(dim=-1)
+        blend = torch.sigmoid(self.mix)
+        adjacency = (1 - blend) * physical.unsqueeze(0) + blend * dynamic
+        graph_x = torch.einsum("bij,bfjt->bfit", adjacency, x)
+        return x + self.temporal(x + torch.sigmoid(self.gate) * graph_x)
+
+
+class DynamicGraphEEGNet(GraphEEGNet):
+    """GraphEEGNet with trial-specific functional connectivity."""
+
+    def __init__(self, num_channels=24, num_classes=26, dropout=0.35):
+        super().__init__(num_channels, num_classes, dropout)
+        self.graph1 = DynamicGraphTemporalBlock(32, 9, dropout)
+        self.graph2 = DynamicGraphTemporalBlock(32, 15, dropout)

@@ -12,7 +12,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if ROOT not in sys.path:
     sys.path.append(ROOT)
 
-from models.graph_eeg_net import GraphEEGNet
+from models.graph_eeg_net import GraphEEGNet, DynamicGraphEEGNet
 from src.extract import EEGDataset
 from src.train import load_and_split_data_pipeline, set_seed
 
@@ -33,12 +33,13 @@ def main():
     parser.add_argument("--epochs", type=int, default=100)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--test", action="store_true")
+    parser.add_argument("--dynamic", action="store_true")
     args = parser.parse_args(); set_seed(args.seed)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     path = os.path.join(ROOT, "data", "processed", "eeg_dataset.npz")
     tr, ty, va, vy, te, tey, _, _ = load_and_split_data_pipeline(path)
     tr, va, te = (x[:, :, 50:551].astype(np.float32) for x in (tr, va, te))
-    model = GraphEEGNet().to(device)
+    model = (DynamicGraphEEGNet() if args.dynamic else GraphEEGNet()).to(device)
     print(f"device={device} parameters={sum(p.numel() for p in model.parameters()):,}")
     train_loader = DataLoader(EEGDataset(tr, ty), 64, shuffle=True)
     val_loader = DataLoader(EEGDataset(va, vy), 128)
@@ -47,7 +48,8 @@ def main():
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.5,
                                                             patience=3, min_lr=1e-5)
     loss_fn = nn.CrossEntropyLoss(label_smoothing=0.1)
-    checkpoint = os.path.join(ROOT, "models", "checkpoints", f"graph_eeg_seed{args.seed}.pth")
+    prefix = "dynamic_graph_eeg" if args.dynamic else "graph_eeg"
+    checkpoint = os.path.join(ROOT, "models", "checkpoints", f"{prefix}_seed{args.seed}.pth")
     best_loss, stale = float("inf"), 0
     for epoch in range(1, args.epochs + 1):
         start = time.time(); model.train()
