@@ -2,6 +2,8 @@
 
 > **Extended reproduction and experiments:** See [EXPERIMENTS_README.md](EXPERIMENTS_README.md) for the English report covering the isolated environment, reproduced baselines, all new architectures, OOF evaluation, theoretical analysis, and the final 24.36% ensemble.
 
+Train the complete extended five-model ensemble with `python src/train_final_ensemble.py`, or evaluate existing checkpoints with `python src/evaluate_deep_ensemble.py`.
+
 Classification of 26 imagined handwritten alphabets (A–Z) from single-trial EEG recordings using deep convolutional neural networks.
 
 ## Table of Contents

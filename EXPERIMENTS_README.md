@@ -291,6 +291,33 @@ The gain comes from error decorrelation across temporal scales, seeds, input win
 
 ## 10. Final Reproduction
 
+### Train all final models from scratch
+
+After preparing `data/processed/eeg_dataset.npz`, the complete five-model workflow can be run with one command:
+
+```bash
+source .venv/bin/activate
+python src/train_final_ensemble.py
+```
+
+The script trains all required EEGNet, windowed DeepConvNet, and GraphEEGNet checkpoints, saves them under `models/checkpoints/`, and automatically evaluates the fixed ensemble. Full training can take tens of minutes depending on hardware.
+
+For a short end-to-end smoke test:
+
+```bash
+python src/train_final_ensemble.py --quick 2
+```
+
+To keep and reuse checkpoints that already exist:
+
+```bash
+python src/train_final_ensemble.py --reuse
+```
+
+Complete retraining reproduces the method rather than guaranteeing bit-identical weights. Stochastic optimization, CUDA kernels, and early-stopping trajectories can change the final accuracy. The fixed saved checkpoints are required for exact reproduction of the reported 24.36% result.
+
+### Evaluate existing final checkpoints
+
 ```bash
 source .venv/bin/activate
 python src/evaluate_deep_ensemble.py
