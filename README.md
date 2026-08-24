@@ -1,5 +1,7 @@
 # Recognition of Imagined Handwritten Content from Brain Signals
 
+> **Extended reproduction and experiments:** See [EXPERIMENTS_README.md](EXPERIMENTS_README.md) for the English report covering the isolated environment, reproduced baselines, all new architectures, OOF evaluation, theoretical analysis, and the final 24.36% ensemble.
+
 Classification of 26 imagined handwritten alphabets (A–Z) from single-trial EEG recordings using deep convolutional neural networks.
 
 ## Table of Contents

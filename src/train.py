@@ -116,7 +116,7 @@ def train_deep_learning_model(model_type, X_train, y_train, X_val, y_val,
                               use_mixup=False, mixup_alpha=0.2, noise_std=0.0,
                               use_swa=False, swa_start_epoch=30,
                               force_cpu=False, quick_epochs=0,
-                              cpu_threads=None):
+                              cpu_threads=None, early_stopping_patience=40):
     """
     Trains a deep learning model with validation-based checkpointing.
     """
@@ -196,7 +196,7 @@ def train_deep_learning_model(model_type, X_train, y_train, X_val, y_val,
     best_epoch = 1
     
     # Early Stopping config
-    patience = 40
+    patience = early_stopping_patience
     epochs_no_improve = 0
     
     # SWA tracking
