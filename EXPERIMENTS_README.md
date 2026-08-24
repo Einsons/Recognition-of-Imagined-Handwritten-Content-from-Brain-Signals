@@ -4,6 +4,8 @@
 
 This document records the complete reproduction and model-development study performed on this repository. It complements the original [`README.md`](README.md), which describes the initial architectures and originally reported results.
 
+The same results are also maintained in machine-readable form in [`EXPERIMENT_RESULTS.csv`](EXPERIMENT_RESULTS.csv).
+
 The study had four goals:
 
 1. reproduce the repository in an isolated environment;
@@ -15,10 +17,10 @@ The best checkpoint-based result obtained in this study is:
 
 | Metric | Accuracy |
 |---|---:|
-| Multi-architecture OOF accuracy | **17.88%** |
-| Held-out test accuracy | **27.18%** |
+| Multi-architecture OOF accuracy | **18.72%** |
+| Held-out test accuracy | **27.56%** |
 
-The strongest prediction is produced by five chronological DeepConvNet folds and five chronological EEGNet folds. Their fusion weight is selected exclusively from out-of-fold predictions.
+The strongest prediction is produced by chronological folds of windowed DeepConvNet, aligned DeepConvNet, EEGNet k=25, EEGNet k=15 SWA, and GraphEEGNet. Fusion weights are selected exclusively from out-of-fold predictions.
 
 ---
 
@@ -290,6 +292,19 @@ Augmentation delayed overfitting but weakened the final validation-loss checkpoi
 
 Half of the validation split identified recurrent top-2 pairs: B--Q, A--S, B--G, B--R, and D--M. Pair-specific linear classifiers were trained from coarse 80 ms ERP-bin features. On the other half of validation, every nonzero correction set was no better than the unmodified ensemble, so zero pairs were selected and test accuracy stayed 24.36%.
 
+### Masked EEG self-supervised pretraining
+
+File: [`src/experiment_masked_pretrain.py`](src/experiment_masked_pretrain.py)
+
+A convolutional encoder was pretrained exclusively on the labeled training split while ignoring labels. Fifteen percent of channels and one 200 ms temporal region were masked, and a decoder reconstructed the missing standardized EEG signal. Masked reconstruction MSE decreased from 0.96 to 0.73 over 25 epochs.
+
+| Encoder initialization | Best validation accuracy |
+|---|---:|
+| Random initialization | 6.67% |
+| Masked reconstruction pretraining | **9.87%** |
+
+Self-supervision produced a clear +3.20 percentage-point transfer gain for the same encoder, proving that the reconstruction task learned reusable structure. Absolute performance remained far below EEGNet and DeepConvNet, so the model was not evaluated on the test set or added to the ensemble. Reconstruction favored signal morphology but did not learn sufficiently class-discriminative representations.
+
 ---
 
 ## 8. Five-Fold Out-of-Fold Experiment
@@ -325,15 +340,29 @@ The same five chronological folds were used to train EEGNet k=25 models. No samp
 |---|---:|---:|
 | Five windowed DeepConvNet folds | 15.58% | 20.90% |
 | Five EEGNet k=25 folds | 13.35% | 21.41% |
-| OOF-selected DCN + EEGNet fusion | **17.88%** | **27.18%** |
+| OOF-selected DCN + EEGNet k=25 fusion | 17.88% | 27.18% |
+| Five EEGNet k=15 SWA folds | 15.33% | 23.46% |
+| Five GraphEEGNet folds | 13.06% | 21.03% |
+| Four-architecture OOF fusion | 18.69% | **27.56%** |
+| Five aligned DeepConvNet folds | 14.87% | 23.85% |
+| Final five-architecture OOF fusion | **18.72%** | **27.56%** |
+| Nested regularized probability stacking | 18.08% | 26.54% |
 
-The fusion uses 56% DeepConvNet logits and 44% scale-normalized EEGNet logits. The 44% value was selected on the concatenated OOF predictions, not on test labels. Although EEGNet had lower standalone OOF accuracy, it supplied highly complementary errors. Averaging five independently trained folds reduced variance, while cross-architecture fusion combined hierarchical ERP and depthwise temporal-spatial features.
+The final integer weights are `(5, 1, 5, 8, 1)` for windowed DCN, aligned DCN, EEGNet k=25, EEGNet k=15 SWA, and GraphEEGNet. Every architecture is scaled to the OOF logit standard deviation of the windowed DCN. Weights and scales are computed from OOF predictions, not test labels. EEGNet k=15 SWA receives the largest weight despite weaker standalone OOF accuracy because its errors complement both DCN variants. Graph and aligned DCN receive small nonzero weights that improve OOF accuracy but do not change the final test count beyond the four-architecture result.
 
 Train or reload the EEGNet folds:
 
 ```bash
 python src/train_oof_eegnet.py --epochs 80 --folds 5 --seed 142
 python src/train_oof_eegnet.py --epochs 80 --folds 5 --seed 142 --reuse
+```
+
+Additional fold commands:
+
+```bash
+python src/train_oof_eegnet.py --epochs 80 --seed 342 --kernel 15 --swa
+python src/train_oof_graph.py --epochs 60 --seed 242
+python src/train_oof_aligned_dcn.py --epochs 80 --seed 442
 ```
 
 Evaluate the fixed leakage-free fusion:
@@ -352,7 +381,7 @@ python src/evaluate_oof_multiarch_ensemble.py
 | Multi-seed five-model ensemble | 22.44% | 24.10% |
 | Ensemble with 0--2,000 ms DCN | 22.82% | 24.23% |
 | Ensemble with GraphEEGNet | **23.33%** | **24.36%** |
-| Multi-architecture OOF ensemble | **17.88% OOF** | **27.18%** |
+| Multi-architecture OOF ensemble | **18.72% OOF** | **27.56%** |
 
 ### Final model weights
 
@@ -386,16 +415,19 @@ The gain comes from error decorrelation across temporal scales, seeds, input win
 ```bash
 python src/train_oof_dcn.py --folds 5 --epochs 100 --seed 42
 python src/train_oof_eegnet.py --folds 5 --epochs 80 --seed 142
+python src/train_oof_eegnet.py --folds 5 --epochs 80 --seed 342 --kernel 15 --swa
+python src/train_oof_graph.py --epochs 60 --seed 242
+python src/train_oof_aligned_dcn.py --epochs 80 --seed 442
 python src/evaluate_oof_multiarch_ensemble.py
 ```
 
 Expected final output:
 
 ```text
-DCN weight: 0.56
-EEGNet weight: 0.44
-OOF accuracy: 17.88%
-Held-out test accuracy: 27.18%
+Architectures: dcn, aligned_dcn, eegnet_k25, eegnet_k15_swa, graph
+OOF-selected integer weights: (5, 1, 5, 8, 1)
+OOF accuracy: 18.72%
+Held-out test accuracy: 27.56%
 ```
 
 ### Train all final models from scratch
@@ -421,7 +453,7 @@ To keep and reuse checkpoints that already exist:
 python src/train_final_ensemble.py --reuse
 ```
 
-Complete retraining reproduces the method rather than guaranteeing bit-identical weights. Stochastic optimization, CUDA kernels, and early-stopping trajectories can change the final accuracy. The fixed five-model checkpoints are required for exact reproduction of the 24.36% non-OOF result; the ten fold checkpoints are required for exact reproduction of the 27.18% OOF result.
+Complete retraining reproduces the method rather than guaranteeing bit-identical weights. Stochastic optimization, CUDA kernels, and early-stopping trajectories can change the final accuracy. The fixed five-model checkpoints are required for exact reproduction of the 24.36% non-OOF result; the fold checkpoints are required for exact reproduction of the 27.56% OOF result.
 
 ### Evaluate existing final checkpoints
 
@@ -472,14 +504,14 @@ The command was executed three consecutive times with identical output. Checkpoi
 3. Validation and test contain only 780 trials each; one trial changes accuracy by about 0.128 percentage points.
 4. Repeated studies on one split create indirect test-set familiarity.
 5. Graph coordinates are approximate rather than participant-specific digitized positions.
-6. The 27.18% result is checkpoint-reproducible, but a full multi-run retraining distribution has not yet been measured.
+6. The 27.56% result is checkpoint-reproducible, but a full multi-run retraining distribution has not yet been measured.
 
 ---
 
 ## 13. Recommended Future Work
 
-1. Train GraphEEGNet under the same OOF protocol and test whether topology adds a third complementary architecture.
-2. Generate OOF logits for additional successful architectures and fit a leakage-free low-dimensional stacker.
+1. Repeat the complete OOF experiment with new seeds and report the distribution rather than one run.
+2. Evaluate the OOF ensemble on a newly collected or completely untouched external test set.
 3. Use digitized participant-specific electrode coordinates.
 4. Add session/domain-adversarial objectives to reduce chronological drift.
 5. Evaluate on additional participants.

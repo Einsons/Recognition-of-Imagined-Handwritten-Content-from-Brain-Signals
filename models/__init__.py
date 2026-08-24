@@ -6,4 +6,5 @@ from .filter_bank_net import FilterBankNet
 from .eeg_conformer import EEGConformer
 from .graph_eeg_net import GraphEEGNet, DynamicGraphEEGNet
 from .multi_window_eeg_net import MultiWindowEEGNet
+from .masked_eeg_encoder import EEGEncoder, MaskedEEGAutoencoder, PretrainedEEGClassifier
 from .eeg_inception import EEGInception
