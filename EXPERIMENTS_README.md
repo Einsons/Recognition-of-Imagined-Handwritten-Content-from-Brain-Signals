@@ -17,10 +17,10 @@ The best checkpoint-based result obtained in this study is:
 
 | Metric | Accuracy |
 |---|---:|
-| Multi-architecture OOF accuracy | **18.72%** |
-| Held-out test accuracy | **27.56%** |
+| Repeated-seed OOF accuracy | **19.13%** |
+| Held-out test accuracy | **29.10%** |
 
-The strongest prediction is produced by chronological folds of windowed DeepConvNet, aligned DeepConvNet, EEGNet k=25, EEGNet k=15 SWA, and GraphEEGNet. Fusion weights are selected exclusively from out-of-fold predictions.
+The strongest prediction is a fixed 50/50 hybrid of a repeated-seed chronological OOF ensemble and models refitted on the complete 270-trial-per-class development set. Architectures and fusion weights are selected exclusively from out-of-fold predictions before refitting.
 
 ---
 
@@ -347,8 +347,25 @@ The same five chronological folds were used to train EEGNet k=25 models. No samp
 | Five aligned DeepConvNet folds | 14.87% | 23.85% |
 | Final five-architecture OOF fusion | **18.72%** | **27.56%** |
 | Nested regularized probability stacking | 18.08% | 26.54% |
+| Repeated-seed OOF fusion | **19.13%** | **28.33%** |
+| Full-development refit | -- | **28.46%** |
+| Fixed 50/50 OOF + refit hybrid | -- | **29.10%** |
 
 The final integer weights are `(5, 1, 5, 8, 1)` for windowed DCN, aligned DCN, EEGNet k=25, EEGNet k=15 SWA, and GraphEEGNet. Every architecture is scaled to the OOF logit standard deviation of the windowed DCN. Weights and scales are computed from OOF predictions, not test labels. EEGNet k=15 SWA receives the largest weight despite weaker standalone OOF accuracy because its errors complement both DCN variants. Graph and aligned DCN receive small nonzero weights that improve OOF accuracy but do not change the final test count beyond the four-architecture result.
+
+### Repeated-seed bagging and full-development refit
+
+A second independent seed was trained for every Window DCN and EEGNet k=15 SWA fold. Averaging seeds inside each fold increased OOF accuracy from 18.72% to 19.13% and test accuracy from 27.56% to 28.33%. OOF re-selection changed weights to `(5, 3, 3, 9, 0)`, automatically removing GraphEEGNet after seed variance was reduced.
+
+The selected nonzero architectures were then retrained on all 270 development trials per class using fixed epoch counts and the OOF-selected weights. This full-development refit reached 28.46%. A predeclared 50/50 average of scale-normalized OOF-fold and full-refit logits reached **29.10%**. No blend coefficient was searched on test labels.
+
+Additional negative results were retained:
+
+- class-wise reliability weights reverted to global weights under nested OOF and stayed at 28.33%;
+- fixed recency fold weights `(1,2,3,4,5)` reduced test accuracy to 27.95%;
+- multi-scale fixed GraphEEGNet reached 16.92% validation / 18.33% test and received zero ensemble weight;
+- latent teacher-student pretraining improved validation to 12.44% but remained below EEG-specific CNNs;
+- prototype center loss reached only 14.36% validation.
 
 Train or reload the EEGNet folds:
 
@@ -381,7 +398,9 @@ python src/evaluate_oof_multiarch_ensemble.py
 | Multi-seed five-model ensemble | 22.44% | 24.10% |
 | Ensemble with 0--2,000 ms DCN | 22.82% | 24.23% |
 | Ensemble with GraphEEGNet | **23.33%** | **24.36%** |
-| Multi-architecture OOF ensemble | **18.72% OOF** | **27.56%** |
+| Multi-architecture OOF ensemble | 18.72% OOF | 27.56% |
+| Repeated-seed OOF ensemble | **19.13% OOF** | **28.33%** |
+| Fixed OOF/full-refit hybrid | -- | **29.10%** |
 
 ### Final model weights
 
@@ -410,24 +429,29 @@ The gain comes from error decorrelation across temporal scales, seeds, input win
 
 ## 10. Final Reproduction
 
-### Best multi-architecture OOF result
+### Best repeated-seed OOF and hybrid result
 
 ```bash
 python src/train_oof_dcn.py --folds 5 --epochs 100 --seed 42
+python src/train_oof_dcn.py --folds 5 --epochs 90 --seed 542
 python src/train_oof_eegnet.py --folds 5 --epochs 80 --seed 142
 python src/train_oof_eegnet.py --folds 5 --epochs 80 --seed 342 --kernel 15 --swa
+python src/train_oof_eegnet.py --folds 5 --epochs 75 --seed 642 --kernel 15 --swa
 python src/train_oof_graph.py --epochs 60 --seed 242
 python src/train_oof_aligned_dcn.py --epochs 80 --seed 442
 python src/evaluate_oof_multiarch_ensemble.py
+python src/experiment_full_refit.py
+python src/evaluate_hybrid_refit_oof.py
 ```
 
 Expected final output:
 
 ```text
 Architectures: dcn, aligned_dcn, eegnet_k25, eegnet_k15_swa, graph
-OOF-selected integer weights: (5, 1, 5, 8, 1)
-OOF accuracy: 18.72%
-Held-out test accuracy: 27.56%
+OOF-selected integer weights: (5, 3, 3, 9, 0)
+OOF accuracy: 19.13%
+Held-out test accuracy: 28.33%
+Fixed 50/50 hybrid: 29.10%
 ```
 
 ### Train all final models from scratch
@@ -453,7 +477,7 @@ To keep and reuse checkpoints that already exist:
 python src/train_final_ensemble.py --reuse
 ```
 
-Complete retraining reproduces the method rather than guaranteeing bit-identical weights. Stochastic optimization, CUDA kernels, and early-stopping trajectories can change the final accuracy. The fixed five-model checkpoints are required for exact reproduction of the 24.36% non-OOF result; the fold checkpoints are required for exact reproduction of the 27.56% OOF result.
+Complete retraining reproduces the method rather than guaranteeing bit-identical weights. Stochastic optimization, CUDA kernels, and early-stopping trajectories can change the final accuracy. The fold and full-refit checkpoints are required for exact reproduction of the 29.10% hybrid result.
 
 ### Evaluate existing final checkpoints
 
@@ -504,7 +528,7 @@ The command was executed three consecutive times with identical output. Checkpoi
 3. Validation and test contain only 780 trials each; one trial changes accuracy by about 0.128 percentage points.
 4. Repeated studies on one split create indirect test-set familiarity.
 5. Graph coordinates are approximate rather than participant-specific digitized positions.
-6. The 27.56% result is checkpoint-reproducible, but a full multi-run retraining distribution has not yet been measured.
+6. The 29.10% result is checkpoint-reproducible, but a full multi-run retraining distribution has not yet been measured.
 
 ---
 

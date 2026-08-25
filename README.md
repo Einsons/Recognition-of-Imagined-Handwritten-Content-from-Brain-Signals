@@ -1,10 +1,10 @@
 # Recognition of Imagined Handwritten Content from Brain Signals
 
-> **Extended reproduction and experiments:** See [EXPERIMENTS_README.md](EXPERIMENTS_README.md) for the English report covering the isolated environment, reproduced baselines, all new architectures, OOF evaluation, theoretical analysis, the fixed 24.36% ensemble, and the stronger 27.56% multi-architecture OOF ensemble.
+> **Extended reproduction and experiments:** See [EXPERIMENTS_README.md](EXPERIMENTS_README.md) for the English report covering the isolated environment, reproduced baselines, all new architectures, OOF evaluation, theoretical analysis, and the final 29.10% repeated-seed OOF/full-refit hybrid.
 
 Train the complete extended five-model ensemble with `python src/train_final_ensemble.py`, or evaluate existing checkpoints with `python src/evaluate_deep_ensemble.py`.
 
-The strongest leakage-free multi-architecture OOF ensemble reaches **27.56%** held-out test accuracy. Reproduce it with `python src/evaluate_oof_multiarch_ensemble.py` after training the folds described in `EXPERIMENTS_README.md`.
+The repeated-seed OOF ensemble reaches **28.33%**, and its fixed 50/50 hybrid with a full-development refit reaches **29.10%** held-out test accuracy. Reproduce them with `python src/evaluate_oof_multiarch_ensemble.py` and `python src/evaluate_hybrid_refit_oof.py` after training the models described in `EXPERIMENTS_README.md`.
 
 A machine-readable summary of every retained result is available in [`EXPERIMENT_RESULTS.csv`](EXPERIMENT_RESULTS.csv).
 
