@@ -14,6 +14,8 @@ from src.train_oof_aligned_dcn import align
 from src.train_oof_dcn import make_oof_splits
 
 NAMES=('dcn','aligned_dcn','eegnet_k25','eegnet_k15_swa','graph')
+DCN_SEED_WEIGHTS=(.50,.50)
+K15_SEED_WEIGHTS=(.50,.50)
 
 
 def predict(model,data,labels,device):
@@ -23,8 +25,9 @@ def predict(model,data,labels,device):
     return torch.cat(out)
 
 
-def seed_average(models,data,labels,device):
-    return torch.stack([predict(model,data,labels,device) for model in models]).mean(0)
+def seed_average(models,data,labels,device,weights):
+    return sum(weight*predict(model,data,labels,device)
+               for model,weight in zip(models,weights))
 
 
 def compositions(total,count,prefix=()):
@@ -49,11 +52,11 @@ def main():
         graph=GraphEEGNet().to(device);graph.load_state_dict(torch.load(os.path.join(ROOT,'models','checkpoints','oof_graph',f'fold_{fold}_seed_{242+fold}.pth'),map_location=device))
         raw_val=data[val_idx,:,50:551];raw_test=data[test_idx,:,50:551]
         targets.append(torch.from_numpy(labels[val_idx]).long())
-        oof[0].append(seed_average(dcns,raw_val,labels[val_idx],device));tests[0].append(seed_average(dcns,raw_test,labels[test_idx],device))
+        oof[0].append(seed_average(dcns,raw_val,labels[val_idx],device,DCN_SEED_WEIGHTS));tests[0].append(seed_average(dcns,raw_test,labels[test_idx],device,DCN_SEED_WEIGHTS))
         inputs=((aligned,align(raw_val),align(raw_test)),(k25,data[val_idx],data[test_idx]))
         for index,(model,val_x,test_x) in enumerate(inputs,start=1):
             oof[index].append(predict(model,val_x,labels[val_idx],device));tests[index].append(predict(model,test_x,labels[test_idx],device))
-        oof[3].append(seed_average(k15s,data[val_idx],labels[val_idx],device));tests[3].append(seed_average(k15s,data[test_idx],labels[test_idx],device))
+        oof[3].append(seed_average(k15s,data[val_idx],labels[val_idx],device,K15_SEED_WEIGHTS));tests[3].append(seed_average(k15s,data[test_idx],labels[test_idx],device,K15_SEED_WEIGHTS))
         oof[4].append(predict(graph,raw_val,labels[val_idx],device));tests[4].append(predict(graph,raw_test,labels[test_idx],device))
         print(f'Loaded fold {fold+1}/5',flush=True)
     oof=[torch.cat(x) for x in oof];target=torch.cat(targets);raw_test=[torch.stack(x).mean(0) for x in tests]

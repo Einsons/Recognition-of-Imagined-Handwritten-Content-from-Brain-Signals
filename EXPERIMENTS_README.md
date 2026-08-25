@@ -357,6 +357,8 @@ The final integer weights are `(5, 1, 5, 8, 1)` for windowed DCN, aligned DCN, E
 
 A second independent seed was trained for every Window DCN and EEGNet k=15 SWA fold. Averaging seeds inside each fold increased OOF accuracy from 18.72% to 19.13% and test accuracy from 27.56% to 28.33%. OOF re-selection changed weights to `(5, 3, 3, 9, 0)`, automatically removing GraphEEGNet after seed variance was reduced.
 
+A third EEGNet k=15 SWA seed was also evaluated. It reached 14.69% OOF / 23.85% test; averaging all three seeds produced 16.35% OOF versus 16.48% for the selected two-seed pair. OOF therefore excluded the third seed. Non-uniform seed weights improved each architecture in isolation but reduced the joint ensemble to 19.07% OOF, so equal averaging of the two retained seeds remained final.
+
 The selected nonzero architectures were then retrained on all 270 development trials per class using fixed epoch counts and the OOF-selected weights. This full-development refit reached 28.46%. A predeclared 50/50 average of scale-normalized OOF-fold and full-refit logits reached **29.10%**. No blend coefficient was searched on test labels.
 
 Additional negative results were retained:

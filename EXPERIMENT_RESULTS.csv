@@ -31,3 +31,6 @@ full_development_refit,,28.46,yes,OOF-selected architectures retrained on 270 tr
 recency_weighted_folds,,27.95,no,Fixed temporal weights 1:2:3:4:5 underperformed equal folds
 strict_walk_forward_dcn,10.13,15.51,no,Cumulative past-only training across chronological blocks
 hybrid_oof_full_refit,,29.10,yes,Fixed 50/50 normalized average; current best
+third_seed_k15_swa,14.69,23.85,no,Third seed reduced OOF bagging quality and was excluded
+three_seed_k15_bagging,16.35,25.13,no,Lower OOF than selected two-seed pair
+nonuniform_seed_weights,19.07,28.46,no,Per-architecture OOF weighting reduced joint-ensemble OOF
