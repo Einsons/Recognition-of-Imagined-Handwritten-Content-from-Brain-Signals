@@ -363,6 +363,7 @@ Additional negative results were retained:
 
 - class-wise reliability weights reverted to global weights under nested OOF and stayed at 28.33%;
 - fixed recency fold weights `(1,2,3,4,5)` reduced test accuracy to 27.95%;
+- strict cumulative walk-forward DCN produced stage accuracies of 4.06%, 10.68%, 11.18%, and 14.60%, for 10.13% combined forward accuracy and 15.51% final-stage test accuracy; early stages lacked enough training data and did not support recency weighting;
 - multi-scale fixed GraphEEGNet reached 16.92% validation / 18.33% test and received zero ensemble weight;
 - latent teacher-student pretraining improved validation to 12.44% but remained below EEG-specific CNNs;
 - prototype center loss reached only 14.36% validation.
