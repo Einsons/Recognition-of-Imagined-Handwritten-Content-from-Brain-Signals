@@ -1,10 +1,11 @@
-import os,sys
+import argparse,os,sys
 import numpy as np,torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 ROOT=os.path.dirname(os.path.dirname(os.path.abspath(__file__)));sys.path.append(ROOT) if ROOT not in sys.path else None
 from models import MaskedEEGAutoencoder,EEGEncoder,PretrainedEEGClassifier
 from src.extract import EEGDataset
+from src.run_utils import prepare_run_dir,write_json
 from src.train import load_and_split_data_pipeline,set_seed
 
 def mask_input(x):
@@ -15,6 +16,7 @@ def evaluate(m,l,d):
         for x,y in l:x,y=x.to(d),y.to(d);z=m(x);s+=nn.functional.cross_entropy(z,y).item()*len(y);c+=(z.argmax(1)==y).sum().item();n+=len(y)
     return s/n,100*c/n
 def main():
+    p=argparse.ArgumentParser();p.add_argument('--run-id');p.add_argument('--runs-root',default=os.path.join(ROOT,'runs'));p.add_argument('--force',action='store_true');a=p.parse_args();run_dir=prepare_run_dir('experiment-latent-pretrain',a.run_id,a.runs_root,a.force);print(f'Run directory: {run_dir}')
     set_seed(42);d=torch.device('cuda' if torch.cuda.is_available() else 'cpu');tr,ty,va,vy,_,_,_,_=load_and_split_data_pipeline(os.path.join(ROOT,'data','processed','eeg_dataset.npz'));tr,va=(x[:,:,50:551].astype('float32') for x in (tr,va));mu=tr.mean((0,2),keepdims=True);sd=tr.std((0,2),keepdims=True)+1e-6;tr=(tr-mu)/sd;va=(va-mu)/sd;tl=DataLoader(EEGDataset(tr,ty),64,shuffle=True);vl=DataLoader(EEGDataset(va,vy),128)
     ae=MaskedEEGAutoencoder().to(d);opt=torch.optim.AdamW(ae.parameters(),lr=1e-3,weight_decay=.01)
     for e in range(1,16):
@@ -37,5 +39,5 @@ def main():
         if vl0<best[0]:best=(vl0,acc);stale=0
         else:stale+=1
         if stale>=15:break
-    print('BEST LATENT PRETRAIN',best)
+    print('BEST LATENT PRETRAIN',best);write_json(os.path.join(run_dir,'metrics.json'),{'best_validation_loss':best[0],'best_validation_accuracy':best[1]},force=a.force)
 if __name__=='__main__':main()

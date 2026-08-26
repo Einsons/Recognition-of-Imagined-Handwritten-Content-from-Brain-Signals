@@ -14,6 +14,7 @@ if ROOT not in sys.path:
 
 from models.graph_eeg_net import GraphEEGNet, DynamicGraphEEGNet, MultiScaleGraphEEGNet
 from src.extract import EEGDataset
+from src.run_utils import guard_output, prepare_run_dir
 from src.train import load_and_split_data_pipeline, set_seed
 
 
@@ -35,7 +36,9 @@ def main():
     parser.add_argument("--test", action="store_true")
     parser.add_argument("--dynamic", action="store_true")
     parser.add_argument("--multiscale", action="store_true")
+    parser.add_argument("--run-id");parser.add_argument("--runs-root",default=os.path.join(ROOT,"runs"));parser.add_argument("--force",action="store_true")
     args = parser.parse_args(); set_seed(args.seed)
+    run_dir=prepare_run_dir('experiment-graph',args.run_id,args.runs_root,args.force);print(f'Run directory: {run_dir}')
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     path = os.path.join(ROOT, "data", "processed", "eeg_dataset.npz")
     tr, ty, va, vy, te, tey, _, _ = load_and_split_data_pipeline(path)
@@ -50,7 +53,8 @@ def main():
                                                             patience=3, min_lr=1e-5)
     loss_fn = nn.CrossEntropyLoss(label_smoothing=0.1)
     prefix = "multiscale_graph_eeg" if args.multiscale else "dynamic_graph_eeg" if args.dynamic else "graph_eeg"
-    checkpoint = os.path.join(ROOT, "models", "checkpoints", f"{prefix}_seed{args.seed}.pth")
+    checkpoint = os.path.join(run_dir, "checkpoints", f"{prefix}_seed{args.seed}.pth")
+    guard_output(checkpoint,force=args.force)
     best_loss, stale = float("inf"), 0
     for epoch in range(1, args.epochs + 1):
         start = time.time(); model.train()
